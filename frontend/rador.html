@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mili | Radar System</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="rador.css">
+</head>
+
+<body>
+    <!-- LOADER -->
+    <div id="loaderOverlay" class="loader-overlay">
+        <div class="loader-wrapper text-center">
+            <div class="rings-container position-relative d-flex justify-content-center align-items-center">
+                <div class="ring ring-outer"></div>
+                <div class="ring ring-middle"></div>
+                <div class="ring ring-inner"></div>
+                <div class="percentage-display">
+                    <span id="loadingPercent">0</span><span>%</span>
+                </div>
+            </div>
+            <div class="loading-text mt-4">
+                <p id="loadingMessage">Mili is loading...</p>
+            </div>
+        </div>
+        <footer class="loader-footer">
+            <div class="footer-content">
+                <div class="datetime" id="currentDateTime"></div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- MAIN RADAR CONTENT -->
+    <div id="radarContent" class="radar-main-content" style="display: none;">
+        <div class="container-fluid rador-container">
+            <div class="row header-row">
+                <div class="col-12 d-flex justify-content-between align-items-center">
+                    <div class="hacker-brand">
+                        <i class="bi bi-shield-lock-fill"></i> Mili <span class="blink-cursor">SECURE v1.0</span>
+                    </div>
+                    <div class="system-status">
+                        <i class="bi bi-circle-fill text-success"></i> SYSTEM ACTIVE
+                        
+                        <div class="dropdown d-inline-block ms-2">
+                            <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button" id="radarModeDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-radar"></i> MODES
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-dark bg-dark border-success" aria-labelledby="radarModeDropdown">
+                                <li><a class="dropdown-item" href="#" data-mode="adas">
+                                    <i class="bi bi-car-front-fill text-primary"></i> Automotive ADAS
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#" data-mode="mining">
+                                    <i class="bi bi-truck text-secondary"></i> Mining Monitoring
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#" data-mode="wifi">
+                                    <i class="bi bi-wifi text-info"></i> Wi-Fi Scanning
+                                </a></li>
+                            </ul>
+                        </div>
+                        
+                        <span id="targetBadgeContainer" class="ms-2 position-relative" style="display: none;">
+                            <span class="badge bg-danger rounded-pill" id="targetCountBadge" style="cursor: pointer; animation: pulse-red 1s infinite; font-size: 0.8rem;">
+                                <i class="bi bi-crosshair"></i> TARGETS: <span id="targetCount">0</span>
+                            </span>
+                        </span>
+                        <span class="ms-2"><i class="bi bi-lock-fill"></i> PROTECTED MODE</span>
+                        <span class="ms-2" id="settingsIcon" style="cursor: pointer;">
+                            <i class="bi bi-gear-fill" style="font-size: 1.2rem;"></i>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row main-row">
+                <div class="col-lg-8 col-md-7 radar-col">
+                    <div class="radar-card">
+                        <div class="radar-header">
+                            <i class="bi bi-grid-3x3-gap-fill"></i> RADAR ARRAY [ACTIVE]
+                            <span class="float-end">
+                                <i class="bi bi-arrow-repeat rotating-icon"></i> ROTATION LOCK
+                                <span class="badge bg-success ms-2">LIVE</span>
+                                <button class="btn btn-sm btn-outline-info ms-2" id="fullscreenBtn" title="Full Screen Mode">
+                                    <i class="bi bi-arrows-fullscreen"></i>
+                                </button>
+                            </span>
+                        </div>
+                        <div class="canvas-wrapper">
+                            <canvas id="radarCanvas" width="700" height="700" style="width:100%; height:auto; max-width:700px; aspect-ratio:1/1"></canvas>
+                        </div>
+                        <div class="radar-footer small">
+                            <i class="bi bi-crosshair"></i> Sweep frequency: 360° / 8s &nbsp;|&nbsp; 
+                            <i class="bi bi-geo-alt-fill text-muted"></i> Hover / Click for coordinates
+                            <span class="badge bg-info ms-2"><i class="bi bi-info-circle"></i> REAL-TIME</span>
+                            <span class="badge bg-warning ms-2"><i class="bi bi-radar"></i> AUTO-DETECT</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 col-md-5 data-col">
+                    <div class="info-card">
+                        <div class="card-header-custom">
+                            <i class="bi bi-geo"></i> COORDINATE TRACKING
+                            <span class="badge bg-primary float-end">ACTIVE</span>
+                        </div>
+                        <div class="card-body-custom">
+                            <div class="coord-section">
+                                <div class="coord-label"><i class="bi bi-cursor"></i> LIVE POINTER</div>
+                                <div class="coord-values">
+                                    <div class="coord-item">
+                                        <span class="coord-type">X (px)</span>
+                                        <span id="cursorX" class="coord-number">---</span>
+                                    </div>
+                                    <div class="coord-item">
+                                        <span class="coord-type">Y (px)</span>
+                                        <span id="cursorY" class="coord-number">---</span>
+                                    </div>
+                                    <div class="coord-item">
+                                        <span class="coord-type">RADAR θ</span>
+                                        <span id="cursorAngle" class="coord-number">---</span>
+                                    </div>
+                                    <div class="coord-item">
+                                        <span class="coord-type">DIST (px)</span>
+                                        <span id="cursorDist" class="coord-number">---</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <hr class="divider-glow">
+                            <div class="coord-section">
+                                <div class="coord-label"><i class="bi bi-target"></i> LAST TARGET LOCK</div>
+                                <div class="coord-values">
+                                    <div class="coord-item">
+                                        <span class="coord-type">Click X</span>
+                                        <span id="clickX" class="coord-number">---</span>
+                                    </div>
+                                    <div class="coord-item">
+                                        <span class="coord-type">Click Y</span>
+                                        <span id="clickY" class="coord-number">---</span>
+                                    </div>
+                                    <div class="coord-item">
+                                        <span class="coord-type">Angle (deg)</span>
+                                        <span id="clickAngle" class="coord-number">---</span>
+                                    </div>
+                                    <div class="coord-item">
+                                        <span class="coord-type">Radius (px)</span>
+                                        <span id="clickRadius" class="coord-number">---</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <hr class="divider-glow">
+                            <div class="coord-section">
+                                <div class="coord-label"><i class="bi bi-arrow-repeat"></i> ROTATING BEAM</div>
+                                <div class="coord-values">
+                                    <div class="coord-item">
+                                        <span class="coord-type">Current Angle</span>
+                                        <span id="sweepAngle" class="coord-number">0.0°</span>
+                                    </div>
+                                    <div class="coord-item">
+                                        <span class="coord-type">Rotation Speed</span>
+                                        <span id="rotSpeed" class="coord-number">45.0°/s</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card mt-3">
+                        <div class="card-header-custom">
+                            <i class="bi bi-bar-chart-steps"></i> RADAR PARAMETERS
+                            <span class="badge bg-success float-end">OPTIMAL</span>
+                        </div>
+                        <div class="card-body-custom">
+                            <div class="d-flex justify-content-between">
+                                <span><i class="bi bi-dot"></i> Grid rings: 4</span>
+                                <span><i class="bi bi-dot"></i> Bearing lines: 8</span>
+                                <span class="badge bg-info rounded-pill">STANDARD</span>
+                            </div>
+                            <div class="d-flex justify-content-between mt-1">
+                                <span><i class="bi bi-dot"></i> Center: (350,350)</span>
+                                <span><i class="bi bi-dot"></i> Radius: 320px</span>
+                            </div>
+                            <div class="progress mt-2" style="height: 6px;">
+                                <div class="progress-bar bg-success" style="width: 100%" role="progressbar"></div>
+                            </div>
+                            <div class="mt-2 text-center">
+                                <i class="bi bi-shield-shaded"></i> ENCRYPTED SCAN &nbsp;|&nbsp; 
+                                <i class="bi bi-hdd-stack"></i> ACTIVE
+                                <span class="badge bg-danger ms-2">CLASSIFIED</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Heat Signature -->
+            <div class="row mt-3">
+                <div class="col-12">
+                    <div class="info-card">
+                        <div class="card-header-custom">
+                            <i class="bi bi-thermometer-half"></i> HEAT SIGNATURE ANALYSIS
+                            <span class="badge bg-danger float-end">LIVE</span>
+                        </div>
+                        <div class="card-body-custom">
+                            <div class="heat-signature-container">
+                                <canvas id="heatSignatureCanvas" width="1000" height="180" style="width:100%; height:auto; background: #071010; border-radius: 8px;"></canvas>
+                                <div class="heat-coordinates d-flex justify-content-between mt-1">
+                                    <small class="green-dark">0%</small>
+                                    <small class="green-dark">25%</small>
+                                    <small class="green-dark">50%</small>
+                                    <small class="green-dark">75%</small>
+                                    <small class="green-dark">100%</small>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between mt-2">
+                                <small class="green-dark"><i class="bi bi-circle-fill text-primary"></i> Low Intensity</small>
+                                <small class="green-dark"><i class="bi bi-circle-fill text-warning"></i> Medium Intensity</small>
+                                <small class="green-dark"><i class="bi bi-circle-fill text-danger"></i> High Intensity</small>
+                                <small class="green-dark"><i class="bi bi-activity"></i> Current: <span id="currentSignatureLevel">Nominal</span></small>
+                                <small class="green-dark"><i class="bi bi-graph-up"></i> Peak: <span id="peakSignatureLevel">0%</span></small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row footer-row">
+                <div class="col-12">
+                    <div class="footer-text">
+                        <i class="bi bi-terminal"></i> > MILI SECURE RADAR :: PROTECTED MODE ACTIVE :: UNAUTHORIZED ACCESS BLOCKED
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal fade" id="securityModal" tabindex="-1" aria-labelledby="securityModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark border-danger">
+                <div class="modal-header border-danger">
+                    <h5 class="modal-title text-danger" id="securityModalLabel">
+                        <i class="bi bi-exclamation-triangle-fill"></i> SECURITY ALERT
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-light" id="securityModalBody">
+                    Unauthorized access attempt detected!
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-danger" data-bs-dismiss="modal">
+                        <i class="bi bi-shield-check"></i> ACKNOWLEDGE
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark border-primary">
+                <div class="modal-header border-primary">
+                    <h5 class="modal-title text-primary" id="successModalLabel">
+                        <i class="bi bi-check-circle-fill"></i> SYSTEM MESSAGE
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-light" id="successModalBody">
+                    Operation completed successfully.
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+                        <i class="bi bi-check-lg"></i> CONFIRM
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="targetDetailsModal" tabindex="-1" aria-labelledby="targetDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content bg-dark border-warning">
+                <div class="modal-header border-warning">
+                    <h5 class="modal-title text-warning" id="targetDetailsModalLabel">
+                        <i class="bi bi-crosshair"></i> TARGET DETECTION REPORT
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-light" id="targetDetailsBody" style="max-height: 60vh; overflow-y: auto;">
+                    <div id="targetsList"></div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-warning" data-bs-dismiss="modal">
+                        <i class="bi bi-check-circle"></i> ACKNOWLEDGE
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content bg-dark border-danger">
+                <div class="modal-header border-danger">
+                    <h5 class="modal-title text-danger" id="settingsModalLabel">
+                        <i class="bi bi-gear-fill"></i> RADAR SYSTEM CONFIGURATION
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-light" style="max-height: 70vh; overflow-y: auto;">
+                    <div class="settings-section mb-4">
+                        <h6 class="text-danger border-bottom border-danger pb-2 mb-3">
+                            <i class="bi bi-speedometer2"></i> RADAR ROTATION
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-8">
+                                <label class="form-label">Sweep Speed: <span id="speedValueDisplay" class="text-danger">45.0</span> °/s</label>
+                                <input type="range" class="form-range bg-dark" id="sweepSpeedSlider" min="15" max="90" step="1" value="45">
+                            </div>
+                            <div class="col-md-4">
+                                <span class="badge bg-danger w-100 p-2">CURRENT: <span id="currentSpeedDisplay">45.0</span>°/s</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section mb-4">
+                        <h6 class="text-danger border-bottom border-danger pb-2 mb-3">
+                            <i class="bi bi-grid-3x3-gap-fill"></i> GRID CONFIGURATION
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Number of Rings: <span id="ringsValueDisplay" class="text-danger">4</span></label>
+                                <input type="range" class="form-range bg-dark" id="ringsSlider" min="2" max="8" step="1" value="4">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Number of Bearing Lines: <span id="bearingsValueDisplay" class="text-danger">8</span></label>
+                                <input type="range" class="form-range bg-dark" id="bearingsSlider" min="4" max="16" step="1" value="8">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section mb-4">
+                        <h6 class="text-danger border-bottom border-danger pb-2 mb-3">
+                            <i class="bi bi-thermometer-half"></i> HEAT SIGNATURE CONFIGURATION
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Update Speed: <span id="heatSpeedValue" class="text-danger">100</span> ms</label>
+                                <input type="range" class="form-range bg-dark" id="heatSpeedSlider" min="30" max="500" step="10" value="100">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Smoothing: <span id="smoothingValue" class="text-danger">5</span></label>
+                                <input type="range" class="form-range bg-dark" id="smoothingSlider" min="1" max="20" step="1" value="5">
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Waveform Style:</label>
+                                <select class="form-select bg-dark text-danger border-danger" id="waveformStyle">
+                                    <option value="bars">Bars (Histogram)</option>
+                                    <option value="line" selected>Line (Smooth)</option>
+                                    <option value="area">Area Fill</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Sensitivity: <span id="sensitivityValue" class="text-danger">1.0</span></label>
+                                <input type="range" class="form-range bg-dark" id="sensitivitySlider" min="0.5" max="2.0" step="0.1" value="1.0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section mb-4">
+                        <h6 class="text-danger border-bottom border-danger pb-2 mb-3">
+                            <i class="bi bi-eye-fill"></i> DISPLAY OPTIONS
+                        </h6>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="showGridToggle" checked>
+                            <label class="form-check-label text-light" for="showGridToggle">Show Grid Lines</label>
+                        </div>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="showBearingsToggle" checked>
+                            <label class="form-check-label text-light" for="showBearingsToggle">Show Bearing Lines</label>
+                        </div>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="showLabelsToggle" checked>
+                            <label class="form-check-label text-light" for="showLabelsToggle">Show Cardinal Labels (N, E, S, W)</label>
+                        </div>
+                    </div>
+
+                    <div class="settings-section mb-4">
+                        <h6 class="text-danger border-bottom border-danger pb-2 mb-3">
+                            <i class="bi bi-shield-lock-fill"></i> SECURITY STATUS
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="bg-dark p-3 rounded border border-danger">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span><i class="bi bi-shield-check text-success"></i> DevTools Protection</span>
+                                        <span class="badge bg-success">ENABLED</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                        <span><i class="bi bi-eye-slash text-warning"></i> Anti-Debug</span>
+                                        <span class="badge bg-success">ACTIVE</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                        <span><i class="bi bi-key text-primary"></i> Encryption Layer</span>
+                                        <span class="badge bg-primary">AES-256</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="bg-dark p-3 rounded border border-danger">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span><i class="bi bi-shield-fill-exclamation"></i> Firewall Status</span>
+                                        <span class="badge bg-danger">ACTIVE</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                        <span><i class="bi bi-fingerprint"></i> Authentication</span>
+                                        <span class="badge bg-danger">MULTI-FACTOR</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                        <span><i class="bi bi-graph-up"></i> Threat Level</span>
+                                        <span class="badge bg-warning text-dark">MONITORED</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h6 class="text-danger border-bottom border-danger pb-2 mb-3">
+                            <i class="bi bi-info-circle-fill"></i> SYSTEM INFORMATION
+                        </h6>
+                        <div class="bg-dark p-3 rounded border border-danger">
+                            <div class="d-flex justify-content-between mt-2">
+                                <span>Active Targets:</span>
+                                <span id="systemTargetCount" class="text-danger">0</span>
+                            </div>
+                            <div class="d-flex justify-content-between mt-2">
+                                <span>Last Sweep:</span>
+                                <span id="lastSweepTime" class="text-danger">--:--:--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-danger" id="resetSettingsBtn">
+                        <i class="bi bi-arrow-repeat"></i> RESET TO DEFAULT
+                    </button>
+                    <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> CLOSE
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="rador.js"></script>
+</body>
+
+</html>
