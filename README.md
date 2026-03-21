@@ -92,10 +92,11 @@ MILI Radar System is a sophisticated radar monitoring platform that simulates an
         python -m venv venv
 
         # Activate virtual environment
-        # On Windows:
-        venv\Scripts\activate
-        # On Linux/Mac:
-        source venv/bin/activate
+                # On Windows:
+                venv/Scripts/activate
+                
+                # On Linux/Mac:
+                source venv/bin/activate
 
         # Install dependencies
         pip install -r requirements.txt
