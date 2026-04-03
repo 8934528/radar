@@ -24,15 +24,40 @@ class Firewall:
         self.is_active = False
         self.monitor_thread = None
         self.callback = None
+        self.sniffer_ref = None
         
-        # Default rules (allow all)
+        # Default rules (allow all initially)
         self.add_rule('ALLOW', '*', '*', '*', '*')
+        
+        # Security rules
+        self._add_security_rules()
+        
+        self.logger.info("Firewall initialized with security rules")
+    
+    def _add_security_rules(self):
+        """Add default security rules"""
+        # Block known malicious ports
+        self.add_rule('BLOCK', 'TCP', '*', '*', '23')    # Telnet
+        self.add_rule('BLOCK', 'TCP', '*', '*', '3389')  # RDP
+        self.add_rule('BLOCK', 'TCP', '*', '*', '445')   # SMB
+        self.add_rule('BLOCK', 'TCP', '*', '*', '135')   # RPC
+        self.add_rule('BLOCK', 'TCP', '*', '*', '139')   # NetBIOS
+        
+        # Allow common services
+        self.add_rule('ALLOW', 'TCP', '*', '*', '80')    # HTTP
+        self.add_rule('ALLOW', 'TCP', '*', '*', '443')   # HTTPS
+        self.add_rule('ALLOW', 'UDP', '*', '*', '53')    # DNS
+        self.add_rule('ALLOW', 'TCP', '*', '*', '22')    # SSH
+        self.add_rule('ALLOW', 'TCP', '*', '*', '3306')  # MySQL
+        
+        self.logger.info(f"Added {len(self.rules)} default security rules")
     
     def set_callback(self, callback):
         """Set callback for firewall events"""
         self.callback = callback
     
     def add_rule(self, action, protocol='*', src_ip='*', dst_ip='*', port='*'):
+        """Add a firewall rule"""
         rule = {
             'id': len(self.rules) + 1,
             'action': action.upper(),
@@ -57,13 +82,17 @@ class Firewall:
         return rule['id']
     
     def add_block_rule(self, ip=None, port=None, protocol=None):
+        """Add a block rule for specific IP or port"""
         if ip:
             self.add_rule('BLOCK', protocol or '*', ip, '*', port or '*')
             self.blocked_ips.add(ip)
+            self.logger.warning(f"Added block rule for IP: {ip}")
         elif port:
             self.add_rule('BLOCK', protocol or '*', '*', '*', port)
+            self.logger.warning(f"Added block rule for port: {port}")
     
     def remove_rule(self, rule_id):
+        """Remove a firewall rule by ID"""
         for i, rule in enumerate(self.rules):
             if rule['id'] == rule_id:
                 self.rules.pop(i)
@@ -122,7 +151,7 @@ class Firewall:
                 self._log_blocked_packet(packet, rule)
                 return False, rule['id'], f"Blocked by rule #{rule['id']}"
         
-        # Default deny 
+        # Default deny
         self.stats['packets_blocked'] += 1
         self._log_blocked_packet(packet, None)
         return False, None, "No matching rule (default deny)"
@@ -176,10 +205,9 @@ class Firewall:
         self._check_attack_pattern(packet)
     
     def _check_attack_pattern(self, packet):
-        # potential attack patterns
         src_ip = packet.get('source')
         if not src_ip:
-            return 
+            return
         
         # Count recent blocks from this IP
         recent_blocks = []
@@ -222,8 +250,9 @@ class Firewall:
     def start_monitoring(self, sniffer, interval=1):
         self.is_active = True
         self.stats['start_time'] = datetime.now()
+        self.sniffer_ref = sniffer
         self.monitor_thread = threading.Thread(target=self._monitor_loop, 
-                                              args=(sniffer, interval), daemon=True)
+                                              args=(interval,), daemon=True)
         self.monitor_thread.start()
         self.logger.info("Firewall monitoring started")
         
@@ -233,40 +262,42 @@ class Firewall:
                 'timestamp': datetime.now().isoformat()
             })
     
-    def _monitor_loop(self, sniffer, interval):
+    def _monitor_loop(self, interval):
         last_packet_count = 0
         
         while self.is_active:
             try:
-                # Get new packets
-                current_packets = list(sniffer.packets)
-                new_packets = current_packets[last_packet_count:]
-                
-                # Check each new packet
-                blocked_packets = []
-                for packet in new_packets:
-                    allowed, rule_id, reason = self.check_packet(packet)
+                if self.sniffer_ref and hasattr(self.sniffer_ref, 'packets'):
+                    current_packets = list(self.sniffer_ref.packets)
+                    new_packets = current_packets[last_packet_count:]
                     
-                    if not allowed:
-                        blocked_packets.append({
-                            'packet': packet,
-                            'rule_id': rule_id,
-                            'reason': reason
+                    # Check each new packet
+                    blocked_packets = []
+                    for packet in new_packets:
+                        allowed, rule_id, reason = self.check_packet(packet)
+                        
+                        if not allowed:
+                            blocked_packets.append({
+                                'packet': packet,
+                                'rule_id': rule_id,
+                                'reason': reason
+                            })
+                    
+                    # Send batch update
+                    if blocked_packets and self.callback:
+                        self.callback({
+                            'type': 'batch_blocked',
+                            'count': len(blocked_packets),
+                            'blocked': blocked_packets[:10]  # Send first 10
                         })
+                    
+                    last_packet_count = len(current_packets)
                 
-                # Send batch update
-                if blocked_packets and self.callback:
-                    self.callback({
-                        'type': 'batch_blocked',
-                        'count': len(blocked_packets),
-                        'blocked': blocked_packets[:10]  # Send first 10
-                    })
-                
-                last_packet_count = len(current_packets)
                 time.sleep(interval)
                 
             except Exception as e:
                 self.logger.error(f"Monitoring error: {e}")
+                time.sleep(1)
     
     def stop_monitoring(self):
         self.is_active = False
@@ -288,6 +319,7 @@ class Firewall:
         stats['duration'] = duration
         stats['rules'] = len(self.rules)
         stats['blocked_ips'] = len(self.blocked_ips)
+        stats['is_active'] = self.is_active
         
         return stats
     
@@ -327,7 +359,6 @@ class Firewall:
         self.logger.info(f"Rules saved to {filename}")
     
     def print_rules(self):
-        # all firewall rules
         print("\n" + "="*80)
         print(f"{'ID':<4} {'ACTION':<8} {'PROTOCOL':<8} {'SOURCE':<20} {'DESTINATION':<20} {'PORT':<8} {'HITS':<8}")
         print("-"*80)
@@ -339,18 +370,15 @@ class Firewall:
         print("="*80)
     
     def print_stats(self):
-
-        # print firewall stats
         stats = self.get_stats()
-
+        
         print("\n" + "="*50)
         print("FIREWALL STATISTICS")
         print("="*50)
-
+        print(f"Status: {'ACTIVE' if stats['is_active'] else 'INACTIVE'}")
         print(f"Uptime: {stats['duration']:.0f} seconds" if stats['duration'] else "Uptime: N/A")
         print(f"Rules: {stats['rules']}")
         print(f"Blocked IPs: {stats['blocked_ips']}")
-
         print(f"Packets Processed: {stats['packets_processed']}")
         print(f"Packets Allowed: {stats['packets_allowed']}")
         print(f"Packets Blocked: {stats['packets_blocked']}")
