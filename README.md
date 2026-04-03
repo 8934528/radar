@@ -141,6 +141,9 @@ Once the server is running, open your browser and navigate to:
         │   ├── wifi_scanner.py           # WiFi network scanning
         │   └── requirements.txt          # Python dependencies
         ├── frontend/                     # System interface
+        │   ├── public/                   # public images
+        |   |     ├── favicon/
+        |   |     └── logo.png
         │   ├── rador.html                # Dashboard
         │   ├── rador.css                 # Styling
         │   └── rador.js                  # Functionality

@@ -145,7 +145,7 @@ class Firewall:
         
         # Check wildcard (e.g., 192.168.*.*)
         if '*' in pattern:
-            pattern_regex = pattern.replace('.', '\.').replace('*', '.*')
+            pattern_regex = '^' + re.escape(pattern).replace(r'\*', '.*') + '$'
             return re.match(pattern_regex, ip) is not None
         
         # Exact match

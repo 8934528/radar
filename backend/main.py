@@ -2,7 +2,7 @@ import numpy as np
 import logging
 import time
 import threading
-from flask import Flask, send_from_directory, request
+from flask import Flask, send_from_directory, request, Response
 from flask_socketio import SocketIO, emit
 import os
 import sys
@@ -57,6 +57,11 @@ def index():
         logger.error(f"Error serving index: {e}")
         return "Radar system starting... Please check if rador.html exists in the frontend directory."
 
+@app.route('/favicon.ico')
+def favicon():
+    """Browsers request this by default; no asset in repo — avoid noisy 404 logs."""
+    return Response(status=204)
+
 @app.route('/<path:filename>')
 def serve_static(filename):
     # Serve static (CSS, JS)
@@ -85,32 +90,39 @@ def handle_disconnect():
 @socketio.on('change_radar_mode')
 def handle_mode_change(data):
     """Change radar scanning mode"""
-    mode = data.get('mode', 'circular')
+    payload = data or {}
+    mode = payload.get('mode', 'circular')
     logger.info(f"Changing radar mode to: {mode}")
-    
-    if scanner:
-        try:
-            if mode == 'circular':
-                scanner.start_circular_scan()
-            elif mode == 'sector':
-                scanner.start_sector_scan(45, 135)
-            elif mode == 'tracking':
-                scanner.start_tracking_scan()
-            elif mode == 'adas':
-                scanner.set_scan_speed(60)
-                scanner.start_circular_scan()
-            elif mode == 'mining':
-                scanner.set_scan_speed(25)
-                scanner.start_sector_scan(0, 180)
-            elif mode == 'wifi':
-                scanner.set_scan_speed(50)
-                scanner.start_circular_scan()
-            
-            emit('mode_changed', {'mode': mode, 'status': 'success'})
-            
-        except Exception as e:
-            logger.error(f"Error changing radar mode: {e}")
-            emit('error', {'message': str(e)})
+
+    if not scanner:
+        emit('error', {'message': 'Scanner not available'})
+        return
+
+    try:
+        if mode == 'circular':
+            scanner.start_circular_scan()
+        elif mode == 'sector':
+            scanner.start_sector_scan(45, 135)
+        elif mode == 'tracking':
+            scanner.start_tracking_scan()
+        elif mode == 'adas':
+            scanner.set_scan_speed(75)
+            scanner.start_circular_scan()
+        elif mode == 'mining':
+            scanner.set_scan_speed(25)
+            scanner.start_sector_scan(0, 180)
+        elif mode == 'wifi':
+            scanner.set_scan_speed(50)
+            scanner.start_circular_scan()
+        else:
+            emit('error', {'message': f'Unknown radar mode: {mode}'})
+            return
+
+        emit('mode_changed', {'mode': mode, 'status': 'success'})
+
+    except Exception as e:
+        logger.error(f"Error changing radar mode: {e}")
+        emit('error', {'message': str(e)})
 
 @socketio.on('set_scan_speed')
 def handle_set_speed(data):

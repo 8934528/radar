@@ -196,6 +196,43 @@
         let heatWaveformStyle = 'line';
         let peakIntensity = 0;
         
+        /** Stable label for simulated targets from mock.js (numeric id + type). */
+        function simulationTargetLabel(targetData) {
+            const prefix = targetData.type === 'MOVING' ? 'M' : targetData.type === 'STATIC' ? 'S' : 'SIM';
+            return `${prefix}-${targetData.id}`;
+        }
+        
+        let backendSweepActive = false;
+        
+        function initBackendSocket() {
+            window.radarSocket = null;
+            if (typeof io !== 'function') {
+                return;
+            }
+            try {
+                const s = io({ path: '/socket.io', transports: ['polling', 'websocket'] });
+                window.radarSocket = s;
+                s.on('connect', () => {
+                    backendSweepActive = true;
+                    console.log('%c[Radar] Backend Socket.IO connected', 'color: #00cc7a');
+                });
+                s.on('disconnect', () => {
+                    backendSweepActive = false;
+                });
+                s.on('scan_position', (data) => {
+                    if (data && typeof data.azimuth === 'number') {
+                        let a = data.azimuth % 360;
+                        if (a < 0) a += 360;
+                        currentSweepAngle = a;
+                    }
+                });
+                s.on('error', (err) => console.warn('[Radar] backend error:', err));
+            } catch (e) {
+                console.warn('[Radar] Socket.IO init failed:', e);
+            }
+        }
+        initBackendSocket();
+        
         function showSecurityAlert(message) {
             if (securityModal) {
                 const modalBody = document.getElementById('securityModalBody');
@@ -264,45 +301,65 @@
             }
         }
         
-        function addDetectedTarget(x, y, angle, distance, type = 'CLICK') {
-            const isDuplicate = detectedTargets.some(target => {
-                const dx = target.x - x;
-                const dy = target.y - y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-                return dist < 15 && target.type === type;
-            });
-            
-            if (!isDuplicate) {
+        /**
+         * @param {string} type  CLICK | MOVING | STATIC
+         * @param {number|null} mockNumericId  When set (mock.js targets), id is M-{n} / S-{n} so updates match.
+         */
+        function addDetectedTarget(x, y, angle, distance, type = 'CLICK', mockNumericId = null) {
+            let displayId;
+            if (mockNumericId != null) {
+                const prefix = type === 'MOVING' ? 'M' : type === 'STATIC' ? 'S' : 'SIM';
+                displayId = `${prefix}-${mockNumericId}`;
+                if (detectedTargets.some(t => t.id === displayId)) {
+                    return false;
+                }
+            } else {
+                const isDuplicate = detectedTargets.some(target => {
+                    const dx = target.x - x;
+                    const dy = target.y - y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    return dist < 15 && target.type === type;
+                });
+                if (isDuplicate) return false;
                 targetIdCounter++;
-                const now = new Date();
-                const timestamp = now.toLocaleTimeString();
-                
-                const newTarget = {
-                    id: `TGT-${targetIdCounter}`,
-                    x: Math.floor(x),
-                    y: Math.floor(y),
-                    angle: angle,
-                    distance: distance,
-                    timestamp: timestamp,
-                    type: type,
-                    createdAt: now
-                };
-                
-                detectedTargets.push(newTarget);
-                updateTargetBadge();
-                
-                if (detectedTargets.length > 100) detectedTargets.shift();
-                return true;
+                displayId = `TGT-${targetIdCounter}`;
             }
-            return false;
+            
+            const now = new Date();
+            const timestamp = now.toLocaleTimeString();
+            
+            const newTarget = {
+                id: displayId,
+                x: Math.floor(x),
+                y: Math.floor(y),
+                angle: angle,
+                distance: distance,
+                timestamp: timestamp,
+                type: type,
+                createdAt: now
+            };
+            
+            detectedTargets.push(newTarget);
+            updateTargetBadge();
+            
+            if (detectedTargets.length > 100) detectedTargets.shift();
+            return true;
         }
         
         function handleMovingTargetUpdate(targetData, eventType) {
+            const label = simulationTargetLabel(targetData);
             if (eventType === 'SPAWN') {
-                addDetectedTarget(targetData.x, targetData.y, targetData.angle, targetData.distance, targetData.type);
+                addDetectedTarget(
+                    targetData.x,
+                    targetData.y,
+                    targetData.angle,
+                    targetData.distance,
+                    targetData.type,
+                    targetData.id
+                );
                 movingTargetsData.set(targetData.id, targetData);
             } else if (eventType === 'DESPAWN') {
-                const index = detectedTargets.findIndex(t => t.id === targetData.id);
+                const index = detectedTargets.findIndex(t => t.id === label);
                 if (index !== -1) {
                     detectedTargets.splice(index, 1);
                     updateTargetBadge();
@@ -310,7 +367,7 @@
                 movingTargetsData.delete(targetData.id);
             } else if (eventType === 'UPDATE') {
                 movingTargetsData.set(targetData.id, targetData);
-                const targetIndex = detectedTargets.findIndex(t => t.id === targetData.id);
+                const targetIndex = detectedTargets.findIndex(t => t.id === label);
                 if (targetIndex !== -1) {
                     detectedTargets[targetIndex] = {
                         ...detectedTargets[targetIndex],
@@ -523,8 +580,10 @@
             }
             let delta = Math.min(0.05, (now - lastFrameTime) / 1000);
             if (delta > 0) {
-                currentSweepAngle += sweepSpeed * delta;
-                if (currentSweepAngle >= 360) currentSweepAngle -= 360;
+                if (!backendSweepActive) {
+                    currentSweepAngle += sweepSpeed * delta;
+                    if (currentSweepAngle >= 360) currentSweepAngle -= 360;
+                }
                 renderFrame();
             }
             lastFrameTime = now;
@@ -970,7 +1029,7 @@
                     // Show success message with mode change
                     showSuccessMessage(`Radar mode changed to: ${modeNames[mode] || mode}`);
                     
-                    // Apply mode-specific visual effects
+                    // Apply mode-specific visual effects (also syncs mode to backend via Socket.IO)
                     applyModeEffects(mode);
                 });
             });
@@ -1031,6 +1090,10 @@
             
             rotSpeedSpan.innerText = sweepSpeed + "°/s";
             renderFrame();
+            
+            if (window.radarSocket && window.radarSocket.connected) {
+                window.radarSocket.emit('change_radar_mode', { mode: mode });
+            }
         }
         
         // ========== SETTINGS MODAL FUNCTION ==========
@@ -1056,11 +1119,14 @@
             rotSpeedSpan.innerText = sweepSpeed + "°/s";
             
             speedSlider.addEventListener('input', (e) => {
-                const newSpeed = parseInt(e.target.value);
+                const newSpeed = parseInt(e.target.value, 10);
                 sweepSpeed = newSpeed;
                 speedValueDisplay.innerText = newSpeed;
                 currentSpeedDisplay.innerText = newSpeed;
                 rotSpeedSpan.innerText = newSpeed + "°/s";
+                if (window.radarSocket && window.radarSocket.connected) {
+                    window.radarSocket.emit('set_scan_speed', { speed: newSpeed });
+                }
             });
             
             ringsSlider.addEventListener('input', (e) => {
@@ -1112,6 +1178,9 @@
                 rotSpeedSpan.innerText = "45.0°/s";
                 renderFrame();
                 showSuccessMessage('Settings reset to default values');
+                if (window.radarSocket && window.radarSocket.connected) {
+                    window.radarSocket.emit('set_scan_speed', { speed: 45 });
+                }
             });
             
             setInterval(() => {
